@@ -159,7 +159,21 @@ def main():
             db.create_all()
         elif if_empty:
             db.create_all()
-            if School.query.count() > 0:
+            try:
+                count = School.query.count()
+            except Exception as e:
+                # Schema mismatch: old tables don't have the new columns we
+                # added (e.g. access_code). db.create_all() doesn't ALTER
+                # existing tables, so the only safe move is to drop and start
+                # over. This is destructive but acceptable for a skeleton.
+                print(f"Schema out of date ({type(e).__name__}: {e}).")
+                print("Dropping and recreating tables to match the new schema.")
+                db.session.rollback()
+                db.drop_all()
+                db.create_all()
+                count = 0
+
+            if count > 0:
                 print("Database already populated; skipping seed.")
                 print("(Set ALUM_RESEED=true and redeploy to force a reset.)")
                 return

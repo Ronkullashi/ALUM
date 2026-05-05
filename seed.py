@@ -1,19 +1,26 @@
 """Seed the database.
 
 Modes:
-  python seed.py                 wipe and re-seed (destructive)
-  python seed.py --if-empty      only seed if no schools exist (safe for boot)
-  ALUM_RESEED=true python ...    forces a wipe-and-reseed even with --if-empty
+  python seed.py                 wipe and re-seed (DESTRUCTIVE — local dev only)
+  python seed.py --if-empty      seed only if no schools exist (safe for boot)
+  python seed.py --add-only      add any new schools to MANHATTAN_PRIVATE_HS
+                                 that aren't in the DB yet (idempotent, safe)
+  ALUM_RESEED=true python seed.py --if-empty
+                                 forces a full wipe-and-reseed
+                                 (only use this if you really mean it)
 
-In production on Render, render.yaml runs `python seed.py --if-empty` on every
-boot, so seed only happens once. To re-seed with new schemas, flip the
-ALUM_RESEED env var to "true" in the Render dashboard once, redeploy, then
-turn it off again.
+How the live site stays stable:
+  render.yaml runs `--if-empty` (no-op once seeded) then `--add-only` (adds
+  schools you've appended to the list since last deploy). Existing schools,
+  their access codes, and all user signups are NEVER touched.
 
-Schools seeded: 27 Manhattan private high schools.
-Each school gets:
-  - a randomly generated unique 7-digit access code (printed at the end)
-  - one admin user (no other alumni; users sign up via the UI)
+Adding a new school: append a tuple to MANHATTAN_PRIVATE_HS below, push to
+GitHub. The next deploy adds it with a fresh code and prints the code in the
+deploy logs. No data is lost.
+
+Schools seeded: 27 Manhattan private high schools. Each gets a random unique
+7-digit access code and one admin user (no other alumni; users sign up via
+the UI).
 """
 import os
 import sys
@@ -25,6 +32,8 @@ from app.models import School, User, Group, GroupMembership, Announcement, Messa
 
 
 # (name, slug, neighborhood, short description)
+# Append new schools to the end of this list. Slugs must be unique and use
+# only lowercase letters, digits, and hyphens (they appear in the URL).
 MANHATTAN_PRIVATE_HS = [
     ("York Preparatory School", "york-prep", "Upper West Side",
      "Independent coed school, grades 6–12."),
@@ -126,30 +135,76 @@ def make_admin(school):
     return u
 
 
+def print_school_table(schools, admins, header="Schools"):
+    print()
+    print("=" * 72)
+    print(f" {header}")
+    print("=" * 72)
+    print(f" {'School':<42}{'Code':<10}Admin email")
+    print("-" * 72)
+    for school, admin in zip(schools, admins):
+        admin_email = admin.email if admin else "—"
+        print(f" {school.name[:40]:<42}{school.access_code:<10}{admin_email}")
+    print()
+    print(" Admin password (default): admin")
+    print()
+
+
+def print_all_schools_in_db():
+    schools = School.query.order_by(School.name).all()
+    admins_by_school = {
+        u.school_id: u
+        for u in User.query.filter_by(is_admin=True).all()
+    }
+    admins = [admins_by_school.get(s.id) for s in schools]
+    print_school_table(schools, admins, header=f"All schools in database ({len(schools)})")
+
+
 # --------------------------------- seed ----------------------------------
 
-def populate():
-    """Insert schools + admins. Tables must already exist and be empty."""
+def populate_full():
+    """Insert schools + admins from scratch. Assumes empty tables."""
     used_codes = set()
     schools = []
-    admins = []
 
     for (name, slug, neighborhood, description) in MANHATTAN_PRIVATE_HS:
-        school = make_school(name, slug, neighborhood, description, used_codes)
-        schools.append(school)
-
+        schools.append(make_school(name, slug, neighborhood, description, used_codes))
     db.session.flush()  # assign IDs
 
-    for school in schools:
-        admin = make_admin(school)
-        admins.append(admin)
-
+    admins = [make_admin(school) for school in schools]
     db.session.commit()
     return schools, admins
 
 
+def populate_add_only():
+    """Insert only schools whose slug isn't already in the DB.
+    Idempotent — safe to run on every boot. Returns the newly added schools."""
+    existing_slugs = {s.slug for s, in db.session.query(School.slug).all()}
+    existing_codes = {s.access_code for s, in db.session.query(School.access_code).all()}
+
+    new_records = [
+        rec for rec in MANHATTAN_PRIVATE_HS if rec[1] not in existing_slugs
+    ]
+    if not new_records:
+        return [], []
+
+    new_schools = []
+    for (name, slug, neighborhood, description) in new_records:
+        new_schools.append(
+            make_school(name, slug, neighborhood, description, existing_codes)
+        )
+    db.session.flush()
+
+    new_admins = [make_admin(school) for school in new_schools]
+    db.session.commit()
+    return new_schools, new_admins
+
+
+# ------------------------------- entrypoint -------------------------------
+
 def main():
     if_empty = "--if-empty" in sys.argv
+    add_only = "--add-only" in sys.argv
     force_reseed = os.environ.get("ALUM_RESEED", "").lower() == "true"
 
     app = create_app()
@@ -158,45 +213,49 @@ def main():
             print("ALUM_RESEED=true — wiping the database and re-seeding.")
             db.drop_all()
             db.create_all()
-        elif if_empty:
-            db.create_all()
-            try:
-                count = School.query.count()
-            except Exception as e:
-                # Schema mismatch: old tables don't have the new columns we
-                # added (e.g. access_code). db.create_all() doesn't ALTER
-                # existing tables, so the only safe move is to drop and start
-                # over. This is destructive but acceptable for a skeleton.
-                print(f"Schema out of date ({type(e).__name__}: {e}).")
-                print("Dropping and recreating tables to match the new schema.")
-                db.session.rollback()
-                db.drop_all()
-                db.create_all()
-                count = 0
+            schools, admins = populate_full()
+            print_school_table(schools, admins, "Seed complete.")
+            return
 
-            if count > 0:
-                print("Database already populated; skipping seed.")
-                print("(Set ALUM_RESEED=true and redeploy to force a reset.)")
+        if add_only:
+            # Idempotent. Adds only schools that don't already exist by slug.
+            new_schools, new_admins = populate_add_only()
+            if new_schools:
+                print_school_table(new_schools, new_admins,
+                                   f"Added {len(new_schools)} new school(s)")
+            else:
+                print("--add-only: no new schools to add.")
+            # Always print the full current list so codes are easy to find.
+            print_all_schools_in_db()
+            return
+
+        if if_empty:
+            # Note: db.create_all() is a no-op if tables exist. It does NOT
+            # add new columns — schema changes require a real migration.
+            db.create_all()
+            if School.query.count() > 0:
+                print("Database already populated; skipping --if-empty seed.")
                 return
-            print("Database is empty — running seed…")
-        else:
-            db.drop_all()
-            db.create_all()
+            print("Database is empty — running initial seed…")
+            schools, admins = populate_full()
+            print_school_table(schools, admins, "Initial seed complete.")
+            return
 
-        schools, admins = populate()
-
-        print()
-        print("=" * 72)
-        print(" Seed complete. Manhattan private high schools loaded.")
-        print("=" * 72)
-        print()
-        print(f" {'School':<42}{'Code':<10}Admin email")
-        print("-" * 72)
-        for school, admin in zip(schools, admins):
-            print(f" {school.name[:40]:<42}{school.access_code:<10}{admin.email}")
-        print()
-        print(" All admin passwords are: admin (change after first login)")
-        print()
+        # Default (no flags): destructive. Local dev only — never run on
+        # production data.
+        confirm = os.environ.get("ALUM_DESTRUCTIVE_OK", "").lower() == "true"
+        if not confirm:
+            print(
+                "Refusing to drop and re-seed without confirmation. "
+                "Set ALUM_DESTRUCTIVE_OK=true to override, or use "
+                "--if-empty / --add-only for safe modes."
+            )
+            sys.exit(1)
+        print("WARNING: dropping all data and re-seeding from scratch.")
+        db.drop_all()
+        db.create_all()
+        schools, admins = populate_full()
+        print_school_table(schools, admins, "Seed complete.")
 
 
 if __name__ == "__main__":

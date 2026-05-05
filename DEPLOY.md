@@ -109,6 +109,35 @@ Render auto-detects the push and redeploys within a minute.
 
 ---
 
+## Adding a new school (without losing data)
+
+Existing schools, their access codes, and all user signups are **never touched** on deploy. To add a new school:
+
+1. Open `seed.py` in a text editor (or have me do it for you).
+2. Append a new tuple to the `MANHATTAN_PRIVATE_HS` list near the top:
+   ```python
+   ("Saint Ann's School", "saint-anns", "Brooklyn Heights",
+    "Coed K–12 independent school in Brooklyn."),
+   ```
+   The four fields are: `(name, slug, neighborhood, description)`. The slug must be unique, lowercase, and use only letters/digits/hyphens — it appears in the URL.
+3. In GitHub Desktop: Commit → Push.
+4. Render auto-redeploys. Watch the Logs tab — you'll see something like:
+   ```
+   Added 1 new school(s)
+   Saint Ann's School        4827193   admin@saint-anns.alumtest
+   ```
+5. The new school's code is now active. Share it with their alumni office to let them sign up. Existing schools are unchanged.
+
+You can add as many schools as you like in one push — each gets its own random code.
+
+---
+
+## Finding access codes anytime
+
+Every deploy prints the full table of schools and codes to the Logs tab. Open Render → your alum service → Logs → search for `All schools in database`. The most recent deploy's logs always have the current list.
+
+---
+
 ## Forcing a fresh re-seed (wipes all data)
 
 The seed normally runs only once — on first boot of an empty database. To wipe everything and re-seed (after a schema change, or to start clean), use the `ALUM_RESEED` env var:

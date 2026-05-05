@@ -65,14 +65,14 @@ def alum_signup(school_slug):
             current_role=request.form.get("current_role", "").strip() or None,
             current_company=request.form.get("current_company", "").strip() or None,
             location=request.form.get("location", "").strip() or None,
-            is_admin=False,  # alums are never admins via signup
+            is_admin=False,        # alums are never admins via signup
+            is_verified=False,     # the school admin has to approve them
         )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        login_user(user)
-        flash(f"Welcome to {school.name} on Alum.", "success")
-        return redirect(url_for("main.school_home", school_slug=school.slug))
+        # Do NOT log them in yet — their account is pending the school's review.
+        return render_template("auth/pending.html", school=school, just_signed_up=True)
 
     return render_template("auth/alum_signup.html", school=school)
 
@@ -87,6 +87,11 @@ def alum_login(school_slug):
         password = request.form.get("password", "")
         user = User.query.filter_by(school_id=school.id, email=email).first()
         if user and not user.is_admin and user.check_password(password):
+            if not user.is_verified:
+                # Credentials are correct but the school hasn't approved them yet.
+                return render_template(
+                    "auth/pending.html", school=school, just_signed_up=False
+                )
             login_user(user)
             return redirect(url_for("main.school_home", school_slug=school.slug))
         flash("Wrong email or password.", "error")

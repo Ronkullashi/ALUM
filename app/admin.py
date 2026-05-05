@@ -20,10 +20,16 @@ def _require_admin(school_slug):
 @login_required
 def dashboard(school_slug):
     school = _require_admin(school_slug)
-    # Alumni only — exclude the admin account from the roster.
+    # Verified alumni — the active roster.
     alumni = (
-        User.query.filter_by(school_id=school.id, is_admin=False)
+        User.query.filter_by(school_id=school.id, is_admin=False, is_verified=True)
         .order_by(User.created_at.desc())
+        .all()
+    )
+    # Pending alumni — waiting for the admin's approval.
+    pending = (
+        User.query.filter_by(school_id=school.id, is_admin=False, is_verified=False)
+        .order_by(User.created_at.asc())
         .all()
     )
     group_count = Group.query.filter_by(school_id=school.id).count()
@@ -41,10 +47,40 @@ def dashboard(school_slug):
         "admin/dashboard.html",
         school=school,
         alumni=alumni,
+        pending=pending,
         group_count=group_count,
         message_count=message_count,
         announcements=announcements,
     )
+
+
+@bp.route("/s/<school_slug>/admin/approve/<int:user_id>", methods=["POST"])
+@login_required
+def approve_alum(school_slug, user_id):
+    school = _require_admin(school_slug)
+    user = User.query.filter_by(
+        id=user_id, school_id=school.id, is_admin=False
+    ).first_or_404()
+    user.is_verified = True
+    db.session.commit()
+    flash(f"Approved {user.full_name}.", "success")
+    return redirect(url_for("admin.dashboard", school_slug=school.slug))
+
+
+@bp.route("/s/<school_slug>/admin/reject/<int:user_id>", methods=["POST"])
+@login_required
+def reject_alum(school_slug, user_id):
+    """Reject a pending signup by deleting the account.
+    They can re-apply later if it was a mistake."""
+    school = _require_admin(school_slug)
+    user = User.query.filter_by(
+        id=user_id, school_id=school.id, is_admin=False, is_verified=False
+    ).first_or_404()
+    name = user.full_name
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"Rejected and removed {name}.", "success")
+    return redirect(url_for("admin.dashboard", school_slug=school.slug))
 
 
 @bp.route("/s/<school_slug>/admin/announce", methods=["POST"])

@@ -12,6 +12,37 @@
 </section>
 
 <section class="card">
+  <h2>Pending alumni — waiting for your review</h2>
+  {% if pending %}
+    <p class="muted">Confirm each person is a real graduate before approving.</p>
+    <table class="roster">
+      <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Role</th><th>Submitted</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for u in pending %}
+          <tr>
+            <td><strong>{{ u.full_name }}</strong></td>
+            <td class="muted">{{ u.email }}</td>
+            <td>{{ u.grad_year or '—' }}</td>
+            <td>{{ u.current_role or '—' }}{% if u.current_company %} · {{ u.current_company }}{% endif %}</td>
+            <td class="muted">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+            <td class="row-actions">
+              <form method="post" action="{{ url_for('admin.approve_alum', school_slug=school.slug, user_id=u.id) }}" style="display:inline;">
+                <button class="btn btn-small btn-primary" type="submit">Approve</button>
+              </form>
+              <form method="post" action="{{ url_for('admin.reject_alum', school_slug=school.slug, user_id=u.id) }}" style="display:inline;" onsubmit="return confirm('Reject and delete this signup? They can re-apply if needed.');">
+                <button class="btn btn-small" type="submit">Reject</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No pending signups.</p>
+  {% endif %}
+</section>
+
+<section class="card">
   <h2>Send an announcement</h2>
   <p class="muted">Visible on the school home page to all alumni and visitors.</p>
   <form method="post" action="{{ url_for('admin.announce', school_slug=school.slug) }}" class="form">
@@ -39,7 +70,7 @@
 </section>
 
 <section class="card">
-  <h2>Alumni roster</h2>
+  <h2>Approved alumni</h2>
   <table class="roster">
     <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Role</th><th>Joined</th></tr></thead>
     <tbody>

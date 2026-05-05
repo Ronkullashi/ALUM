@@ -67,6 +67,10 @@ class User(UserMixin, db.Model):
 
     # Permissions
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    # Approval state — schools must verify alumni before they can log in.
+    # Admins are seeded as is_verified=True; alumni signups start as False
+    # and are flipped to True from the admin dashboard.
+    is_verified = db.Column(db.Boolean, default=False, nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

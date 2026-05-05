@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Account pending · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  {% if just_signed_up %}
+    <h1>Account submitted</h1>
+    <p>
+      Thanks for signing up to {{ school.name }} on Alum. Your account is now
+      <strong>pending review</strong> by the school's alumni office. They'll
+      verify that you're a real graduate and approve your account.
+    </p>
+  {% else %}
+    <h1>Still pending review</h1>
+    <p>
+      Your {{ school.name }} account hasn't been approved yet. The alumni
+      office reviews new accounts manually — you'll be able to log in as soon
+      as they verify you.
+    </p>
+  {% endif %}
+
+  <p class="muted">
+    No notification email is sent yet (this is a v1). Check back later, or
+    reach out to your school's alumni office if it's been a while.
+  </p>
+
+  <p>
+    <a class="btn" href="{{ url_for('main.landing') }}">Back to start</a>
+    <a class="btn" href="{{ url_for('auth.alum_login', school_slug=school.slug) }}">Try logging in</a>
+  </p>
+</section>
+{% endblock %}

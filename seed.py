@@ -117,6 +117,7 @@ def make_admin(school):
         first_name="Alumni",
         last_name="Office",
         is_admin=True,
+        is_verified=True,  # admins skip the approval queue
         current_role=f"{school.name} Alumni Office",
         location=f"{school.neighborhood}, New York, NY",
     )

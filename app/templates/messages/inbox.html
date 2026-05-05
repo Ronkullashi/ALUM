@@ -15,7 +15,7 @@
               {% if t.partner.profile_pic_url %}
                 <img src="{{ t.partner.profile_pic_url }}" alt="">
               {% else %}
-                <div class="avatar-fallback">{{ t.partner.first_name[:1] }}{{ t.partner.last_name[:1] }}</div>
+                <div class="avatar-fallback" data-color="{{ t.partner.id % 8 }}">{{ t.partner.first_name[:1] }}{{ t.partner.last_name[:1] }}</div>
               {% endif %}
             </div>
             <div>

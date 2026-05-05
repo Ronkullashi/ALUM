@@ -8,7 +8,7 @@
       {% if user.profile_pic_url %}
         <img src="{{ user.profile_pic_url }}" alt="">
       {% else %}
-        <div class="avatar-fallback">{{ user.first_name[:1] }}{{ user.last_name[:1] }}</div>
+        <div class="avatar-fallback" data-color="{{ user.id % 8 }}">{{ user.first_name[:1] }}{{ user.last_name[:1] }}</div>
       {% endif %}
     </div>
     <div>

@@ -120,8 +120,19 @@ def make_group(school, name, category, description, creator):
     )
     db.session.add(g)
     db.session.flush()
-    db.session.add(GroupMembership(user_id=creator.id, group_id=g.id))
+    ensure_member(creator, g)
     return g
+
+
+def ensure_member(user, group):
+    """Add a GroupMembership only if it doesn't already exist.
+    Prevents UNIQUE-constraint errors when the same user is added twice
+    (e.g. as a group's creator AND via a class-year loop)."""
+    existing = GroupMembership.query.filter_by(
+        user_id=user.id, group_id=group.id
+    ).first()
+    if not existing:
+        db.session.add(GroupMembership(user_id=user.id, group_id=group.id))
 
 
 def populate():
@@ -155,15 +166,16 @@ def populate():
 
     for u in york_users:
         if u.grad_year == 2024:
-            db.session.add(GroupMembership(user_id=u.id, group_id=york_class_2024.id))
+            ensure_member(u, york_class_2024)
         if u.grad_year == 2022:
-            db.session.add(GroupMembership(user_id=u.id, group_id=york_class_2022.id))
+            ensure_member(u, york_class_2022)
 
     for u in york_users:
-        if u.current_role and "resident" in (u.current_role or "").lower():
-            db.session.add(GroupMembership(user_id=u.id, group_id=york_premed.id))
-        if u.current_role and any(k in (u.current_role or "").lower() for k in ["engineer", "founder"]):
-            db.session.add(GroupMembership(user_id=u.id, group_id=york_tech.id))
+        role = (u.current_role or "").lower()
+        if "resident" in role:
+            ensure_member(u, york_premed)
+        if any(k in role for k in ["engineer", "founder"]):
+            ensure_member(u, york_tech)
 
     # Announcement from the York Prep admin.
     york_admin = next(u for u in york_users if u.is_admin)

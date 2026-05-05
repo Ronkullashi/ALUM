@@ -22,8 +22,12 @@ class School(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(200), nullable=False)
     slug = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    # 7-digit access code that gates entry into the school's network.
+    # Each school has a unique code; alumni need it to sign up.
+    access_code = db.Column(db.String(7), unique=True, nullable=False, index=True)
     city = db.Column(db.String(120))
     state = db.Column(db.String(80))
+    neighborhood = db.Column(db.String(120))
     logo_url = db.Column(db.String(500))
     description = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -109,6 +109,21 @@ Render auto-detects the push and redeploys within a minute.
 
 ---
 
+## Forcing a fresh re-seed (wipes all data)
+
+The seed normally runs only once — on first boot of an empty database. To wipe everything and re-seed (after a schema change, or to start clean), use the `ALUM_RESEED` env var:
+
+1. In Render dashboard, open your **alum** web service → **Environment** tab.
+2. Click **Add Environment Variable**.
+3. Key: `ALUM_RESEED`. Value: `true`. Click **Save Changes**.
+4. Saving auto-triggers a redeploy. Watch the Logs tab — you'll see "ALUM_RESEED=true — wiping the database and re-seeding." followed by the school list with new access codes.
+5. **Important:** once it succeeds, go back to **Environment** and **delete** the `ALUM_RESEED` variable (or change it to `false`). Otherwise every future deploy will wipe your data.
+6. The next deploy with no `ALUM_RESEED` is normal — schools persist.
+
+The school access codes are printed in the deploy logs every time the seed runs. You can also see your school's code in the admin dashboard once you're logged in.
+
+---
+
 ## If something breaks
 
 - **Build fails on Render.** Open the **Logs** tab — usually a missing dependency. Tell me the error and I'll fix `requirements.txt`.

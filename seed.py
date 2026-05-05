@@ -1,243 +1,186 @@
-"""Seed the database with two demo schools and a handful of alumni.
+"""Seed the database.
 
-Usage:
-  python seed.py              # wipe and re-seed (destructive!)
-  python seed.py --if-empty   # only seed if the database has no schools yet
-                              # (safe to run on every deploy)
+Modes:
+  python seed.py                 wipe and re-seed (destructive)
+  python seed.py --if-empty      only seed if no schools exist (safe for boot)
+  ALUM_RESEED=true python ...    forces a wipe-and-reseed even with --if-empty
+
+In production on Render, render.yaml runs `python seed.py --if-empty` on every
+boot, so seed only happens once. To re-seed with new schemas, flip the
+ALUM_RESEED env var to "true" in the Render dashboard once, redeploy, then
+turn it off again.
+
+Schools seeded: 27 Manhattan private high schools.
+Each school gets:
+  - a randomly generated unique 7-digit access code (printed at the end)
+  - one admin user (no other alumni; users sign up via the UI)
 """
+import os
 import sys
+import random
+import string
+
 from app import create_app, db
 from app.models import School, User, Group, GroupMembership, Announcement, Message
 
 
-SCHOOLS = [
-    {
-        "slug": "york-prep",
-        "name": "York Prep",
-        "city": "New York",
-        "state": "NY",
-        "description": (
-            "An independent high school on the Upper West Side. Small classes, "
-            "lots of personality, and a tight-knit alumni community."
-        ),
-    },
-    {
-        "slug": "bronx-science",
-        "name": "Bronx High School of Science",
-        "city": "Bronx",
-        "state": "NY",
-        "description": (
-            "A specialized public high school known for its math, science, and "
-            "research programs. Eight Nobel laureates and counting."
-        ),
-    },
+# (name, slug, neighborhood, short description)
+MANHATTAN_PRIVATE_HS = [
+    ("York Preparatory School", "york-prep", "Upper West Side",
+     "Independent coed school, grades 6–12."),
+    ("Trinity School", "trinity", "Upper West Side",
+     "K–12 independent school, founded 1709."),
+    ("Collegiate School", "collegiate", "Upper West Side",
+     "K–12 all-boys, founded 1628 — oldest school in the U.S."),
+    ("Dalton School", "dalton", "Upper East Side",
+     "Progressive K–12 coed independent school."),
+    ("The Brearley School", "brearley", "Upper East Side",
+     "All-girls K–12 independent school."),
+    ("Chapin School", "chapin", "Upper East Side",
+     "All-girls K–12 independent school."),
+    ("The Spence School", "spence", "Upper East Side",
+     "All-girls K–12 independent school."),
+    ("Nightingale-Bamford School", "nightingale", "Upper East Side",
+     "All-girls K–12 independent school."),
+    ("Marymount School of New York", "marymount", "Upper East Side",
+     "All-girls Catholic K–12 school."),
+    ("Convent of the Sacred Heart", "sacred-heart", "Upper East Side",
+     "All-girls Catholic K–12 school."),
+    ("The Browning School", "browning", "Upper East Side",
+     "All-boys K–12 independent school."),
+    ("The Calhoun School", "calhoun", "Upper West Side",
+     "Progressive coed school, grades 3–12."),
+    ("The Hewitt School", "hewitt", "Upper East Side",
+     "All-girls K–12 independent school."),
+    ("Birch Wathen Lenox School", "bwl", "Upper East Side",
+     "Coed K–12 independent school."),
+    ("Loyola School", "loyola", "Upper East Side",
+     "Catholic Jesuit coed high school, grades 9–12."),
+    ("Regis High School", "regis", "Upper East Side",
+     "Tuition-free Jesuit all-boys high school, grades 9–12."),
+    ("Xavier High School", "xavier", "Chelsea",
+     "Catholic Jesuit all-boys high school, grades 9–12."),
+    ("Friends Seminary", "friends-seminary", "East Village",
+     "Quaker K–12 coed independent school."),
+    ("Avenues: The World School", "avenues", "Chelsea",
+     "Coed K–12 international school."),
+    ("Léman Manhattan Preparatory School", "leman", "Financial District",
+     "Coed PreK–12 independent school."),
+    ("Trevor Day School", "trevor", "Upper East Side",
+     "Coed N–12 progressive independent school."),
+    ("Lycée Français de New York", "lycee-francais", "Upper East Side",
+     "French bilingual PreK–12 coed school."),
+    ("The Beekman School", "beekman", "Murray Hill",
+     "Coed independent high school, grades 9–12."),
+    ("Dwight School", "dwight", "Upper West Side",
+     "Coed PreK–12 IB World School."),
+    ("Ramaz School", "ramaz", "Upper East Side",
+     "Modern Orthodox Jewish coed N–12 day school."),
+    ("The Heschel School", "heschel", "Upper West Side",
+     "Pluralist Jewish coed N–12 day school."),
+    ("Professional Children's School", "pcs", "Lincoln Square",
+     "Coed independent school for student artists & athletes, grades 6–12."),
 ]
 
 
-YORK_PREP_ALUMNI = [
-    # (first, last, email, grad_year, role, company, location, bio, is_admin)
-    ("Dren", "Kullashi", "dren@yorkprep.example", 2024, "Investment Banking Analyst",
-     "Baruch College", "New York, NY",
-     "Studying finance at Baruch. Building Alum on the side.", False),
-    ("Maya", "Chen", "maya@yorkprep.example", 2022, "Software Engineer",
-     "Stripe", "San Francisco, CA",
-     "Working on payments infra. Always happy to chat with younger alumni.", False),
-    ("Jordan", "Levine", "jordan@yorkprep.example", 2020, "Medical Resident",
-     "Mount Sinai", "New York, NY",
-     "Pediatrics resident. Rowed varsity. Reach out if you're pre-med.", False),
-    ("Priya", "Desai", "priya@yorkprep.example", 2018, "Founder & CEO",
-     "Threadline (acquired)", "New York, NY",
-     "Started a logistics startup, sold it last year. Now figuring out what's next.", False),
-    ("Sam", "Okafor", "sam@yorkprep.example", 2024, "Freshman, undecided",
-     "Vanderbilt University", "Nashville, TN",
-     "Just got to college. Looking for advice on picking a major.", False),
-    ("Ms. Alvarez", "Director of Alumni", "alvarez@yorkprep.example", None,
-     "Director of Alumni Relations", "York Prep", "New York, NY",
-     "I run the alumni office at York Prep. Email me with anything!", True),
-]
+# -------------------------------- helpers --------------------------------
+
+def generate_access_code(used: set) -> str:
+    """Return a 7-digit code not already in `used`. Mutates `used`."""
+    while True:
+        code = "".join(random.choices(string.digits, k=7))
+        if code not in used:
+            used.add(code)
+            return code
 
 
-BRONX_SCIENCE_ALUMNI = [
-    ("Aisha", "Khan", "aisha@bxs.example", 2021, "PhD candidate, ML",
-     "MIT", "Cambridge, MA", "ML research, mostly NLP.", False),
-    ("Marco", "Rivera", "marco@bxs.example", 2019, "Software Engineer",
-     "Google", "Mountain View, CA", "SRE on Search.", False),
-    ("Mr. Park", "Alumni Office", "park@bxs.example", None,
-     "Director of Alumni Relations", "Bronx Science", "Bronx, NY",
-     "Running the alumni network for the school.", True),
-]
-
-
-YORK_PREP_GROUPS = [
-    ("Class of 2024", "class_year",
-     "For everyone who graduated in 2024. Senior trip memories live here forever."),
-    ("Class of 2022", "class_year", "Class of 2022 — share what you're up to."),
-    ("Pre-Med Mentors", "interest",
-     "Med school applicants, residents, and current students helping juniors and seniors."),
-    ("Varsity Crew", "sport", "Past and present rowers."),
-    ("NYC Tech", "interest",
-     "Alumni working in software, design, or data in New York."),
-]
-
-
-BRONX_SCIENCE_GROUPS = [
-    ("Class of 2021", "class_year", "Class of 2021 alumni."),
-    ("Research Program", "club", "Past students of the Bronx Science research program."),
-]
-
-
-def make_school(record):
-    s = School(**record)
+def make_school(name, slug, neighborhood, description, used_codes):
+    s = School(
+        name=name,
+        slug=slug,
+        neighborhood=neighborhood,
+        city="New York",
+        state="NY",
+        description=description,
+        access_code=generate_access_code(used_codes),
+    )
     db.session.add(s)
     return s
 
 
-def make_user(school, first, last, email, grad_year, role, company, location, bio, is_admin):
+def make_admin(school):
+    """Create the single admin user for a school."""
+    email = f"admin@{school.slug}.alumtest"
     u = User(
         school_id=school.id,
-        email=email.lower(),
-        first_name=first,
-        last_name=last,
-        grad_year=grad_year,
-        current_role=role,
-        current_company=company,
-        location=location,
-        bio=bio,
-        is_admin=is_admin,
+        email=email,
+        first_name="Alumni",
+        last_name="Office",
+        is_admin=True,
+        current_role=f"{school.name} Alumni Office",
+        location=f"{school.neighborhood}, New York, NY",
     )
-    u.set_password("password")  # all demo users: "password"
+    u.set_password("admin")  # demo password — change after first login
     db.session.add(u)
     return u
 
 
-def make_group(school, name, category, description, creator):
-    g = Group(
-        school_id=school.id,
-        name=name,
-        category=category,
-        description=description,
-        created_by_id=creator.id,
-    )
-    db.session.add(g)
-    db.session.flush()
-    ensure_member(creator, g)
-    return g
-
-
-def ensure_member(user, group):
-    """Add a GroupMembership only if it doesn't already exist.
-    Prevents UNIQUE-constraint errors when the same user is added twice
-    (e.g. as a group's creator AND via a class-year loop)."""
-    existing = GroupMembership.query.filter_by(
-        user_id=user.id, group_id=group.id
-    ).first()
-    if not existing:
-        db.session.add(GroupMembership(user_id=user.id, group_id=group.id))
-
+# --------------------------------- seed ----------------------------------
 
 def populate():
-    """Insert all the seed rows. Assumes tables already exist and are empty."""
-    # Schools
-    york = make_school(SCHOOLS[0])
-    bronx = make_school(SCHOOLS[1])
-    db.session.flush()
+    """Insert schools + admins. Tables must already exist and be empty."""
+    used_codes = set()
+    schools = []
+    admins = []
 
-    # Alumni
-    york_users = [make_user(york, *row) for row in YORK_PREP_ALUMNI]
-    bronx_users = [make_user(bronx, *row) for row in BRONX_SCIENCE_ALUMNI]
-    db.session.flush()
+    for (name, slug, neighborhood, description) in MANHATTAN_PRIVATE_HS:
+        school = make_school(name, slug, neighborhood, description, used_codes)
+        schools.append(school)
 
-    # Groups
-    york_groups = [
-        make_group(york, name, cat, desc, york_users[0])
-        for (name, cat, desc) in YORK_PREP_GROUPS
-    ]
-    bronx_groups = [
-        make_group(bronx, name, cat, desc, bronx_users[0])
-        for (name, cat, desc) in BRONX_SCIENCE_GROUPS
-    ]
-    db.session.flush()
+    db.session.flush()  # assign IDs
 
-    # Drop everyone into their class-year group + a couple interest groups.
-    york_class_2024 = york_groups[0]
-    york_class_2022 = york_groups[1]
-    york_premed = york_groups[2]
-    york_tech = york_groups[4]
-
-    for u in york_users:
-        if u.grad_year == 2024:
-            ensure_member(u, york_class_2024)
-        if u.grad_year == 2022:
-            ensure_member(u, york_class_2022)
-
-    for u in york_users:
-        role = (u.current_role or "").lower()
-        if "resident" in role:
-            ensure_member(u, york_premed)
-        if any(k in role for k in ["engineer", "founder"]):
-            ensure_member(u, york_tech)
-
-    # Announcement from the York Prep admin.
-    york_admin = next(u for u in york_users if u.is_admin)
-    db.session.add(
-        Announcement(
-            school_id=york.id,
-            sent_by_id=york_admin.id,
-            title="Homecoming reunion — October 12",
-            body=(
-                "Save the date — homecoming weekend is October 12. Tours, "
-                "alumni mixer, and the annual fall game. RSVP details soon."
-            ),
-        )
-    )
-
-    # A sample DM thread.
-    dren = next(u for u in york_users if u.email.startswith("dren@"))
-    maya = next(u for u in york_users if u.email.startswith("maya@"))
-    db.session.add(Message(
-        sender_id=dren.id, recipient_id=maya.id,
-        body="Hey Maya — saw you're at Stripe. Mind if I ask about IB recruiting vs SWE for finance roles?"
-    ))
-    db.session.add(Message(
-        sender_id=maya.id, recipient_id=dren.id,
-        body="Of course, happy to chat. Free Sunday afternoon?"
-    ))
+    for school in schools:
+        admin = make_admin(school)
+        admins.append(admin)
 
     db.session.commit()
-    return york_users, bronx_users
+    return schools, admins
 
 
 def main():
     if_empty = "--if-empty" in sys.argv
+    force_reseed = os.environ.get("ALUM_RESEED", "").lower() == "true"
+
     app = create_app()
     with app.app_context():
-        if if_empty:
-            # Tables already created by create_app(); only seed if no schools yet.
+        if force_reseed:
+            print("ALUM_RESEED=true — wiping the database and re-seeding.")
+            db.drop_all()
+            db.create_all()
+        elif if_empty:
             db.create_all()
             if School.query.count() > 0:
                 print("Database already populated; skipping seed.")
+                print("(Set ALUM_RESEED=true and redeploy to force a reset.)")
                 return
             print("Database is empty — running seed…")
         else:
             db.drop_all()
             db.create_all()
 
-        york_users, bronx_users = populate()
+        schools, admins = populate()
 
         print()
-        print("Seed complete.")
+        print("=" * 72)
+        print(" Seed complete. Manhattan private high schools loaded.")
+        print("=" * 72)
         print()
-        print("Demo logins (all passwords are: password)")
-        print("-" * 60)
-        print("York Prep — /s/york-prep/")
-        for u in york_users:
-            tag = " (ADMIN)" if u.is_admin else ""
-            print(f"  {u.email:<35} {u.full_name}{tag}")
+        print(f" {'School':<42}{'Code':<10}Admin email")
+        print("-" * 72)
+        for school, admin in zip(schools, admins):
+            print(f" {school.name[:40]:<42}{school.access_code:<10}{admin.email}")
         print()
-        print("Bronx Science — /s/bronx-science/")
-        for u in bronx_users:
-            tag = " (ADMIN)" if u.is_admin else ""
-            print(f"  {u.email:<35} {u.full_name}{tag}")
+        print(" All admin passwords are: admin (change after first login)")
         print()
 
 

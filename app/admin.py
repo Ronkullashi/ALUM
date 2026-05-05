@@ -20,7 +20,12 @@ def _require_admin(school_slug):
 @login_required
 def dashboard(school_slug):
     school = _require_admin(school_slug)
-    alumni = User.query.filter_by(school_id=school.id).order_by(User.created_at.desc()).all()
+    # Alumni only — exclude the admin account from the roster.
+    alumni = (
+        User.query.filter_by(school_id=school.id, is_admin=False)
+        .order_by(User.created_at.desc())
+        .all()
+    )
     group_count = Group.query.filter_by(school_id=school.id).count()
     message_count = (
         Message.query.join(User, Message.sender_id == User.id)
@@ -64,18 +69,6 @@ def announce(school_slug):
     return redirect(url_for("admin.dashboard", school_slug=school.slug))
 
 
-@bp.route("/s/<school_slug>/admin/promote/<int:user_id>", methods=["POST"])
-@login_required
-def toggle_admin(school_slug, user_id):
-    school = _require_admin(school_slug)
-    user = User.query.filter_by(id=user_id, school_id=school.id).first_or_404()
-    if user.id == current_user.id:
-        flash("You can't change your own admin status here.", "error")
-        return redirect(url_for("admin.dashboard", school_slug=school.slug))
-    user.is_admin = not user.is_admin
-    db.session.commit()
-    flash(
-        f"{user.full_name} is now {'an admin' if user.is_admin else 'a regular alum'}.",
-        "success",
-    )
-    return redirect(url_for("admin.dashboard", school_slug=school.slug))
+# NOTE: there's intentionally no promote/demote route. Each school has exactly
+# one admin account, created when the school is added to Alum. To rotate the
+# admin, change the credentials directly in the database.

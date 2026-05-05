@@ -51,7 +51,10 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = "auth.alum_login_pick_school"
+    # When a @login_required view is hit while logged out, send the user to
+    # the code-entry landing page. They'll enter the school code, get to the
+    # gateway, and pick "Log in" from there.
+    login_manager.login_view = "main.landing"
 
     from .models import User
 

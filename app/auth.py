@@ -1,13 +1,20 @@
 """Auth blueprint: alum signup/login, admin login, logout.
 
-Login is scoped per-school. The route is /auth/<school_slug>/login so a user
-authenticates into a specific school's network. (Two people at different
-schools can share an email.)
+Signup is gated on the visitor having entered the school's access code on /.
+The verification is stored in the Flask session under SCHOOL_ACCESS_KEY.
+
+Login (alum or admin) does NOT require the access code — the email + password
+is sufficient, since existing accounts were already vetted.
+
+Logout clears the verification, so the next visit starts at code entry again.
 """
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask import (
+    Blueprint, render_template, request, redirect, url_for, flash, abort, session
+)
 from flask_login import login_user, logout_user, login_required, current_user
 from . import db
 from .models import School, User
+from .main import SCHOOL_ACCESS_KEY
 
 bp = Blueprint("auth", __name__)
 
@@ -19,10 +26,8 @@ def _get_school(slug):
     return school
 
 
-@bp.route("/login")
-def alum_login_pick_school():
-    """If the user hits /auth/login without a school, send them to the landing."""
-    return redirect(url_for("main.landing"))
+def _has_verified_code_for(school):
+    return session.get(SCHOOL_ACCESS_KEY) == school.id
 
 
 # ---------------- Alum signup ----------------
@@ -30,6 +35,11 @@ def alum_login_pick_school():
 @bp.route("/<school_slug>/signup", methods=["GET", "POST"])
 def alum_signup(school_slug):
     school = _get_school(school_slug)
+
+    if not _has_verified_code_for(school):
+        flash("Enter your school's access code first.", "error")
+        return redirect(url_for("main.landing"))
+
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
@@ -37,8 +47,8 @@ def alum_signup(school_slug):
         last = request.form.get("last_name", "").strip()
         grad_year = request.form.get("grad_year", "").strip()
 
-        if not (email and password and first and last):
-            flash("Please fill in all required fields.", "error")
+        if not (email and password and first and last and grad_year.isdigit()):
+            flash("Please fill in every field, including your graduation year.", "error")
             return render_template("auth/alum_signup.html", school=school)
 
         existing = User.query.filter_by(school_id=school.id, email=email).first()
@@ -51,13 +61,17 @@ def alum_signup(school_slug):
             email=email,
             first_name=first,
             last_name=last,
-            grad_year=int(grad_year) if grad_year.isdigit() else None,
+            grad_year=int(grad_year),
+            current_role=request.form.get("current_role", "").strip() or None,
+            current_company=request.form.get("current_company", "").strip() or None,
+            location=request.form.get("location", "").strip() or None,
+            is_admin=False,  # alums are never admins via signup
         )
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
         login_user(user)
-        flash("Welcome to Alum.", "success")
+        flash(f"Welcome to {school.name} on Alum.", "success")
         return redirect(url_for("main.school_home", school_slug=school.slug))
 
     return render_template("auth/alum_signup.html", school=school)
@@ -72,7 +86,7 @@ def alum_login(school_slug):
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         user = User.query.filter_by(school_id=school.id, email=email).first()
-        if user and user.check_password(password):
+        if user and not user.is_admin and user.check_password(password):
             login_user(user)
             return redirect(url_for("main.school_home", school_slug=school.slug))
         flash("Wrong email or password.", "error")
@@ -88,7 +102,7 @@ def admin_login(school_slug):
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         user = User.query.filter_by(school_id=school.id, email=email).first()
-        if user and user.check_password(password) and user.is_admin:
+        if user and user.is_admin and user.check_password(password):
             login_user(user)
             return redirect(url_for("admin.dashboard", school_slug=school.slug))
         flash("Invalid admin credentials.", "error")
@@ -100,6 +114,7 @@ def admin_login(school_slug):
 @bp.route("/logout")
 @login_required
 def logout():
-    school_slug = current_user.school.slug
     logout_user()
-    return redirect(url_for("main.school_home", school_slug=school_slug))
+    # Clear the school-access flag so they're sent back to code entry.
+    session.pop(SCHOOL_ACCESS_KEY, None)
+    return redirect(url_for("main.landing"))

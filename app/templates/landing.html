@@ -1,45 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Alum — find your high school network{% endblock %}
+{% block title %}Alum — enter your school code{% endblock %}
 
 {% block content %}
 <section class="hero">
   <h1>The network you forgot you had.</h1>
-  <p class="lead">
-    A private social network for every American high school. Find classmates,
-    join groups, message friends from down the hall, and stay connected to the
-    school that shaped you.
-  </p>
+  <p class="lead">A private alumni network for your high school. Enter the access code your school gave you to continue.</p>
 </section>
 
-<section class="card">
-  <h2>Pick your school</h2>
-  {% if schools %}
-    <ul class="school-list">
-      {% for s in schools %}
-        <li>
-          <a href="{{ url_for('main.school_home', school_slug=s.slug) }}">
-            <strong>{{ s.name }}</strong>
-            {% if s.city %}<span class="muted"> · {{ s.city }}{% if s.state %}, {{ s.state }}{% endif %}</span>{% endif %}
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p class="muted">No schools yet. Run <code>python seed.py</code> to load demo data.</p>
-  {% endif %}
-</section>
+<section class="card narrow">
+  <h2>Enter your school's access code</h2>
+  <form method="post" class="form code-form">
+    <label>
+      7-digit access code
+      <input
+        name="code"
+        inputmode="numeric"
+        pattern="[0-9 \-]*"
+        maxlength="11"
+        autocomplete="off"
+        autofocus
+        required
+        placeholder="•••••••">
+    </label>
+    <button class="btn btn-primary" type="submit">Continue</button>
+  </form>
 
-<section class="card">
-  <h2>For schools</h2>
-  <p>
-    Independent schools, public schools, and charter schools can run their own
-    network on Alum. Each school gets a branded space, an admin dashboard,
-    alumni records, announcements, and engagement metrics — without the
-    spreadsheet chaos.
-  </p>
-  <p class="muted">
-    A school onboarding flow isn't part of the skeleton yet. To add a school,
-    edit <code>seed.py</code> or insert a row in the <code>schools</code> table.
+  <p class="muted small">
+    Don't have a code? Ask your school's alumni office.
+    Schools: contact us to request a code for your school.
   </p>
 </section>
 {% endblock %}

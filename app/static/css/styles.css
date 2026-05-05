@@ -180,6 +180,45 @@ textarea { resize: vertical; }
 .flash-success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
 .flash-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
 
+/* ---- Code entry ---- */
+
+.code-form input {
+  font-size: 1.4rem;
+  letter-spacing: 0.4em;
+  text-align: center;
+  padding: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Two-column gateway ---- */
+
+.gateway {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.gateway-card { display: flex; flex-direction: column; }
+.gateway-card h2 { margin-top: 0; }
+.gateway-buttons {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+}
+@media (max-width: 600px) {
+  .gateway { grid-template-columns: 1fr; }
+}
+
+.form-section {
+  margin: 8px 0 -4px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 /* ---- Hero / landing ---- */
 
 .hero {

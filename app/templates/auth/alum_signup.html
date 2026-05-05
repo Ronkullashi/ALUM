@@ -4,14 +4,19 @@
 {% block content %}
 <section class="card narrow">
   <h1>Join {{ school.name }}</h1>
-  <p class="muted">Create an account so other alumni can find you.</p>
+  <p class="muted">Create your alum account. Other graduates will be able to find you in the directory and message you.</p>
 
   <form method="post" class="form">
     <label>First name<input name="first_name" required></label>
     <label>Last name<input name="last_name" required></label>
     <label>Email<input type="email" name="email" required></label>
     <label>Password<input type="password" name="password" required minlength="6"></label>
-    <label>Graduation year<input type="number" name="grad_year" min="1900" max="2099"></label>
+    <label>Graduation year (required)<input type="number" name="grad_year" required min="1900" max="2099" placeholder="e.g. 2018"></label>
+
+    <h3 class="form-section">Optional — fill in now or later</h3>
+    <label>Current role<input name="current_role" placeholder="e.g. Software Engineer"></label>
+    <label>Current company / school<input name="current_company" placeholder="e.g. Stripe, NYU"></label>
+    <label>Location<input name="location" placeholder="City, State"></label>
 
     <button class="btn btn-primary" type="submit">Create account</button>
   </form>

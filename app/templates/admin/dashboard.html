@@ -41,7 +41,7 @@
 <section class="card">
   <h2>Alumni roster</h2>
   <table class="roster">
-    <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Role</th><th>Joined</th><th>Admin</th></tr></thead>
+    <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Role</th><th>Joined</th></tr></thead>
     <tbody>
       {% for u in alumni %}
         <tr>
@@ -50,18 +50,15 @@
           <td>{{ u.grad_year or '—' }}</td>
           <td>{{ u.current_role or '—' }}{% if u.current_company %} · {{ u.current_company }}{% endif %}</td>
           <td class="muted">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
-          <td>
-            {% if u.id == current_user.id %}
-              <span class="muted">you</span>
-            {% else %}
-              <form method="post" action="{{ url_for('admin.toggle_admin', school_slug=school.slug, user_id=u.id) }}">
-                <button class="btn btn-small" type="submit">{% if u.is_admin %}Demote{% else %}Promote{% endif %}</button>
-              </form>
-            {% endif %}
-          </td>
         </tr>
+      {% else %}
+        <tr><td colspan="5" class="muted">No alumni have signed up yet. Share your school's access code to invite them.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+
+  <p class="muted small" style="margin-top: 14px;">
+    Your school's access code: <code>{{ school.access_code }}</code> — share this with alumni so they can sign up.
+  </p>
 </section>
 {% endblock %}

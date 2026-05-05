@@ -179,8 +179,9 @@ def populate_full():
 def populate_add_only():
     """Insert only schools whose slug isn't already in the DB.
     Idempotent — safe to run on every boot. Returns the newly added schools."""
-    existing_slugs = {s.slug for s, in db.session.query(School.slug).all()}
-    existing_codes = {s.access_code for s, in db.session.query(School.access_code).all()}
+    all_schools = School.query.all()
+    existing_slugs = {s.slug for s in all_schools}
+    existing_codes = {s.access_code for s in all_schools}
 
     new_records = [
         rec for rec in MANHATTAN_PRIVATE_HS if rec[1] not in existing_slugs

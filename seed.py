@@ -1,26 +1,15 @@
 """Seed the database.
 
 Modes:
-  python seed.py                 wipe and re-seed (DESTRUCTIVE — local dev only)
-  python seed.py --if-empty      seed only if no schools exist (safe for boot)
-  python seed.py --add-only      add any new schools to MANHATTAN_PRIVATE_HS
-                                 that aren't in the DB yet (idempotent, safe)
-  ALUM_RESEED=true python seed.py --if-empty
-                                 forces a full wipe-and-reseed
-                                 (only use this if you really mean it)
+  python seed.py                 wipe and re-seed (DESTRUCTIVE — local dev only,
+                                 requires ALUM_DESTRUCTIVE_OK=true)
+  python seed.py --if-empty      seed only if no schools exist (safe for boot).
+                                 Always prints the current codes at the end.
+  ALUM_RESEED=true python ...    forces a full wipe-and-reseed
 
-How the live site stays stable:
-  render.yaml runs `--if-empty` (no-op once seeded) then `--add-only` (adds
-  schools you've appended to the list since last deploy). Existing schools,
-  their access codes, and all user signups are NEVER touched.
-
-Adding a new school: append a tuple to MANHATTAN_PRIVATE_HS below, push to
-GitHub. The next deploy adds it with a fresh code and prints the code in the
-deploy logs. No data is lost.
-
-Schools seeded: 27 Manhattan private high schools. Each gets a random unique
-7-digit access code and one admin user (no other alumni; users sign up via
-the UI).
+Production startup runs --if-empty, which is a no-op once you've seeded.
+The current schools and their codes are always printed at the end of every
+run, so you can find your codes in any deploy log.
 """
 import os
 import sys
@@ -32,8 +21,6 @@ from app.models import School, User, Group, GroupMembership, Announcement, Messa
 
 
 # (name, slug, neighborhood, short description)
-# Append new schools to the end of this list. Slugs must be unique and use
-# only lowercase letters, digits, and hyphens (they appear in the URL).
 MANHATTAN_PRIVATE_HS = [
     ("York Preparatory School", "york-prep", "Upper West Side",
      "Independent coed school, grades 6–12."),
@@ -92,10 +79,7 @@ MANHATTAN_PRIVATE_HS = [
 ]
 
 
-# -------------------------------- helpers --------------------------------
-
 def generate_access_code(used: set) -> str:
-    """Return a 7-digit code not already in `used`. Mutates `used`."""
     while True:
         code = "".join(random.choices(string.digits, k=7))
         if code not in used:
@@ -105,12 +89,8 @@ def generate_access_code(used: set) -> str:
 
 def make_school(name, slug, neighborhood, description, used_codes):
     s = School(
-        name=name,
-        slug=slug,
-        neighborhood=neighborhood,
-        city="New York",
-        state="NY",
-        description=description,
+        name=name, slug=slug, neighborhood=neighborhood,
+        city="New York", state="NY", description=description,
         access_code=generate_access_code(used_codes),
     )
     db.session.add(s)
@@ -118,31 +98,49 @@ def make_school(name, slug, neighborhood, description, used_codes):
 
 
 def make_admin(school):
-    """Create the single admin user for a school."""
     email = f"admin@{school.slug}.alumtest"
     u = User(
-        school_id=school.id,
-        email=email,
-        first_name="Alumni",
-        last_name="Office",
-        is_admin=True,
-        is_verified=True,  # admins skip the approval queue
+        school_id=school.id, email=email,
+        first_name="Alumni", last_name="Office",
+        is_admin=True, is_verified=True,
         current_role=f"{school.name} Alumni Office",
         location=f"{school.neighborhood}, New York, NY",
     )
-    u.set_password("admin")  # demo password — change after first login
+    u.set_password("admin")
     db.session.add(u)
     return u
 
 
-def print_school_table(schools, admins, header="Schools"):
+def populate():
+    used_codes = set()
+    schools = []
+    for (name, slug, neighborhood, description) in MANHATTAN_PRIVATE_HS:
+        schools.append(make_school(name, slug, neighborhood, description, used_codes))
+    db.session.flush()
+    admins = [make_admin(s) for s in schools]
+    db.session.commit()
+    return schools, admins
+
+
+def print_current_codes():
+    """Print every school + code currently in the database. Always reads
+    from the DB so the printed codes are guaranteed to match what the form
+    accepts — no stale logs, no surprises."""
+    schools = School.query.order_by(School.name).all()
+    admins_by_school = {
+        u.school_id: u
+        for u in User.query.filter_by(is_admin=True).all()
+    }
+
     print()
     print("=" * 72)
-    print(f" {header}")
+    print(f" CURRENT SCHOOLS IN DATABASE ({len(schools)})")
+    print(" These are the codes that work on the live site right now.")
     print("=" * 72)
     print(f" {'School':<42}{'Code':<10}Admin email")
     print("-" * 72)
-    for school, admin in zip(schools, admins):
+    for school in schools:
+        admin = admins_by_school.get(school.id)
         admin_email = admin.email if admin else "—"
         print(f" {school.name[:40]:<42}{school.access_code:<10}{admin_email}")
     print()
@@ -150,62 +148,8 @@ def print_school_table(schools, admins, header="Schools"):
     print()
 
 
-def print_all_schools_in_db():
-    schools = School.query.order_by(School.name).all()
-    admins_by_school = {
-        u.school_id: u
-        for u in User.query.filter_by(is_admin=True).all()
-    }
-    admins = [admins_by_school.get(s.id) for s in schools]
-    print_school_table(schools, admins, header=f"All schools in database ({len(schools)})")
-
-
-# --------------------------------- seed ----------------------------------
-
-def populate_full():
-    """Insert schools + admins from scratch. Assumes empty tables."""
-    used_codes = set()
-    schools = []
-
-    for (name, slug, neighborhood, description) in MANHATTAN_PRIVATE_HS:
-        schools.append(make_school(name, slug, neighborhood, description, used_codes))
-    db.session.flush()  # assign IDs
-
-    admins = [make_admin(school) for school in schools]
-    db.session.commit()
-    return schools, admins
-
-
-def populate_add_only():
-    """Insert only schools whose slug isn't already in the DB.
-    Idempotent — safe to run on every boot. Returns the newly added schools."""
-    all_schools = School.query.all()
-    existing_slugs = {s.slug for s in all_schools}
-    existing_codes = {s.access_code for s in all_schools}
-
-    new_records = [
-        rec for rec in MANHATTAN_PRIVATE_HS if rec[1] not in existing_slugs
-    ]
-    if not new_records:
-        return [], []
-
-    new_schools = []
-    for (name, slug, neighborhood, description) in new_records:
-        new_schools.append(
-            make_school(name, slug, neighborhood, description, existing_codes)
-        )
-    db.session.flush()
-
-    new_admins = [make_admin(school) for school in new_schools]
-    db.session.commit()
-    return new_schools, new_admins
-
-
-# ------------------------------- entrypoint -------------------------------
-
 def main():
     if_empty = "--if-empty" in sys.argv
-    add_only = "--add-only" in sys.argv
     force_reseed = os.environ.get("ALUM_RESEED", "").lower() == "true"
 
     app = create_app()
@@ -214,49 +158,29 @@ def main():
             print("ALUM_RESEED=true — wiping the database and re-seeding.")
             db.drop_all()
             db.create_all()
-            schools, admins = populate_full()
-            print_school_table(schools, admins, "Seed complete.")
-            return
-
-        if add_only:
-            # Idempotent. Adds only schools that don't already exist by slug.
-            new_schools, new_admins = populate_add_only()
-            if new_schools:
-                print_school_table(new_schools, new_admins,
-                                   f"Added {len(new_schools)} new school(s)")
-            else:
-                print("--add-only: no new schools to add.")
-            # Always print the full current list so codes are easy to find.
-            print_all_schools_in_db()
-            return
-
-        if if_empty:
-            # Note: db.create_all() is a no-op if tables exist. It does NOT
-            # add new columns — schema changes require a real migration.
+            populate()
+        elif if_empty:
             db.create_all()
             if School.query.count() > 0:
                 print("Database already populated; skipping --if-empty seed.")
-                return
-            print("Database is empty — running initial seed…")
-            schools, admins = populate_full()
-            print_school_table(schools, admins, "Initial seed complete.")
-            return
+            else:
+                print("Database is empty — running initial seed…")
+                populate()
+        else:
+            if os.environ.get("ALUM_DESTRUCTIVE_OK", "").lower() != "true":
+                print(
+                    "Refusing to drop and re-seed without confirmation. "
+                    "Set ALUM_DESTRUCTIVE_OK=true to override, or use --if-empty."
+                )
+                sys.exit(1)
+            print("WARNING: dropping all data and re-seeding.")
+            db.drop_all()
+            db.create_all()
+            populate()
 
-        # Default (no flags): destructive. Local dev only — never run on
-        # production data.
-        confirm = os.environ.get("ALUM_DESTRUCTIVE_OK", "").lower() == "true"
-        if not confirm:
-            print(
-                "Refusing to drop and re-seed without confirmation. "
-                "Set ALUM_DESTRUCTIVE_OK=true to override, or use "
-                "--if-empty / --add-only for safe modes."
-            )
-            sys.exit(1)
-        print("WARNING: dropping all data and re-seeding from scratch.")
-        db.drop_all()
-        db.create_all()
-        schools, admins = populate_full()
-        print_school_table(schools, admins, "Seed complete.")
+        # Always print the current codes at the end of every run, so they're
+        # never out of sync with what's actually in the database.
+        print_current_codes()
 
 
 if __name__ == "__main__":

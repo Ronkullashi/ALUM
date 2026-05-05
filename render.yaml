@@ -13,14 +13,10 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    # On every boot:
-    #   1. --if-empty: initial seed if the DB is brand new (no-op otherwise)
-    #   2. --add-only: insert any schools added to MANHATTAN_PRIVATE_HS since
-    #      the last deploy (no-op if no new schools). Existing data is never
-    #      touched. Prints the full school+code table to the deploy logs so
-    #      you can find access codes anytime.
-    #   3. Start gunicorn.
-    startCommand: python seed.py --if-empty && python seed.py --add-only && gunicorn run:app
+    # On boot: --if-empty does an initial seed only if the DB is blank
+    # (no-op otherwise), and ALWAYS prints the current schools + codes
+    # to the logs at the end. Then gunicorn starts.
+    startCommand: python seed.py --if-empty && gunicorn run:app
     envVars:
       - key: ALUM_SECRET
         generateValue: true       # Render generates a strong random value

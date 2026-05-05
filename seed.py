@@ -1,8 +1,11 @@
 """Seed the database with two demo schools and a handful of alumni.
 
-Run after install:  python seed.py
-Re-running drops everything and re-creates it.
+Usage:
+  python seed.py              # wipe and re-seed (destructive!)
+  python seed.py --if-empty   # only seed if the database has no schools yet
+                              # (safe to run on every deploy)
 """
+import sys
 from app import create_app, db
 from app.models import School, User, Group, GroupMembership, Announcement, Message
 
@@ -121,98 +124,108 @@ def make_group(school, name, category, description, creator):
     return g
 
 
+def populate():
+    """Insert all the seed rows. Assumes tables already exist and are empty."""
+    # Schools
+    york = make_school(SCHOOLS[0])
+    bronx = make_school(SCHOOLS[1])
+    db.session.flush()
+
+    # Alumni
+    york_users = [make_user(york, *row) for row in YORK_PREP_ALUMNI]
+    bronx_users = [make_user(bronx, *row) for row in BRONX_SCIENCE_ALUMNI]
+    db.session.flush()
+
+    # Groups
+    york_groups = [
+        make_group(york, name, cat, desc, york_users[0])
+        for (name, cat, desc) in YORK_PREP_GROUPS
+    ]
+    bronx_groups = [
+        make_group(bronx, name, cat, desc, bronx_users[0])
+        for (name, cat, desc) in BRONX_SCIENCE_GROUPS
+    ]
+    db.session.flush()
+
+    # Drop everyone into their class-year group + a couple interest groups.
+    york_class_2024 = york_groups[0]
+    york_class_2022 = york_groups[1]
+    york_premed = york_groups[2]
+    york_tech = york_groups[4]
+
+    for u in york_users:
+        if u.grad_year == 2024:
+            db.session.add(GroupMembership(user_id=u.id, group_id=york_class_2024.id))
+        if u.grad_year == 2022:
+            db.session.add(GroupMembership(user_id=u.id, group_id=york_class_2022.id))
+
+    for u in york_users:
+        if u.current_role and "resident" in (u.current_role or "").lower():
+            db.session.add(GroupMembership(user_id=u.id, group_id=york_premed.id))
+        if u.current_role and any(k in (u.current_role or "").lower() for k in ["engineer", "founder"]):
+            db.session.add(GroupMembership(user_id=u.id, group_id=york_tech.id))
+
+    # Announcement from the York Prep admin.
+    york_admin = next(u for u in york_users if u.is_admin)
+    db.session.add(
+        Announcement(
+            school_id=york.id,
+            sent_by_id=york_admin.id,
+            title="Homecoming reunion — October 12",
+            body=(
+                "Save the date — homecoming weekend is October 12. Tours, "
+                "alumni mixer, and the annual fall game. RSVP details soon."
+            ),
+        )
+    )
+
+    # A sample DM thread.
+    dren = next(u for u in york_users if u.email.startswith("dren@"))
+    maya = next(u for u in york_users if u.email.startswith("maya@"))
+    db.session.add(Message(
+        sender_id=dren.id, recipient_id=maya.id,
+        body="Hey Maya — saw you're at Stripe. Mind if I ask about IB recruiting vs SWE for finance roles?"
+    ))
+    db.session.add(Message(
+        sender_id=maya.id, recipient_id=dren.id,
+        body="Of course, happy to chat. Free Sunday afternoon?"
+    ))
+
+    db.session.commit()
+    return york_users, bronx_users
+
+
 def main():
+    if_empty = "--if-empty" in sys.argv
     app = create_app()
     with app.app_context():
-        # Reset.
-        db.drop_all()
-        db.create_all()
+        if if_empty:
+            # Tables already created by create_app(); only seed if no schools yet.
+            db.create_all()
+            if School.query.count() > 0:
+                print("Database already populated; skipping seed.")
+                return
+            print("Database is empty — running seed…")
+        else:
+            db.drop_all()
+            db.create_all()
 
-        # Schools
-        york = make_school(SCHOOLS[0])
-        bronx = make_school(SCHOOLS[1])
-        db.session.flush()
-
-        # York Prep alumni
-        york_users = [make_user(york, *row) for row in YORK_PREP_ALUMNI]
-        bronx_users = [make_user(bronx, *row) for row in BRONX_SCIENCE_ALUMNI]
-        db.session.flush()
-
-        # Groups
-        york_groups = [
-            make_group(york, name, cat, desc, york_users[0])
-            for (name, cat, desc) in YORK_PREP_GROUPS
-        ]
-        bronx_groups = [
-            make_group(bronx, name, cat, desc, bronx_users[0])
-            for (name, cat, desc) in BRONX_SCIENCE_GROUPS
-        ]
-        db.session.flush()
-
-        # Drop everyone into their class-year group + a couple interest groups.
-        york_class_2024 = york_groups[0]
-        york_class_2022 = york_groups[1]
-        york_premed = york_groups[2]
-        york_tech = york_groups[4]
-
-        for u in york_users:
-            if u.grad_year == 2024:
-                db.session.add(GroupMembership(user_id=u.id, group_id=york_class_2024.id))
-            if u.grad_year == 2022:
-                db.session.add(GroupMembership(user_id=u.id, group_id=york_class_2022.id))
-
-        # Topical groups
-        for u in york_users:
-            if u.current_role and "resident" in (u.current_role or "").lower():
-                db.session.add(GroupMembership(user_id=u.id, group_id=york_premed.id))
-            if u.current_role and any(k in (u.current_role or "").lower() for k in ["engineer", "founder"]):
-                db.session.add(GroupMembership(user_id=u.id, group_id=york_tech.id))
-
-        # Announcement from the York Prep admin.
-        york_admin = next(u for u in york_users if u.is_admin)
-        db.session.add(
-            Announcement(
-                school_id=york.id,
-                sent_by_id=york_admin.id,
-                title="Homecoming reunion — October 12",
-                body=(
-                    "Save the date — homecoming weekend is October 12. Tours, "
-                    "alumni mixer, and the annual fall game. RSVP details soon."
-                ),
-            )
-        )
-
-        # A sample DM thread.
-        dren = next(u for u in york_users if u.email.startswith("dren@"))
-        maya = next(u for u in york_users if u.email.startswith("maya@"))
-        db.session.add(Message(
-            sender_id=dren.id, recipient_id=maya.id,
-            body="Hey Maya — saw you're at Stripe. Mind if I ask about IB recruiting vs SWE for finance roles?"
-        ))
-        db.session.add(Message(
-            sender_id=maya.id, recipient_id=dren.id,
-            body="Of course, happy to chat. Free Sunday afternoon?"
-        ))
-
-        db.session.commit()
+        york_users, bronx_users = populate()
 
         print()
         print("Seed complete.")
         print()
         print("Demo logins (all passwords are: password)")
         print("-" * 60)
-        print("York Prep — http://localhost:5000/s/york-prep/")
+        print("York Prep — /s/york-prep/")
         for u in york_users:
             tag = " (ADMIN)" if u.is_admin else ""
             print(f"  {u.email:<35} {u.full_name}{tag}")
         print()
-        print("Bronx Science — http://localhost:5000/s/bronx-science/")
+        print("Bronx Science — /s/bronx-science/")
         for u in bronx_users:
             tag = " (ADMIN)" if u.is_admin else ""
             print(f"  {u.email:<35} {u.full_name}{tag}")
-        print()
-        print("Admin login URL:  /auth/<school-slug>/admin/login")
-        print("Alum login URL:   /auth/<school-slug>/login")
         print()
 
 

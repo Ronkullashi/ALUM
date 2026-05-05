@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Log in · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>Log in to {{ school.name }}</h1>
+
+  <form method="post" class="form">
+    <label>Email<input type="email" name="email" required></label>
+    <label>Password<input type="password" name="password" required></label>
+    <button class="btn btn-primary" type="submit">Log in</button>
+  </form>
+
+  <p class="muted">
+    New here? <a href="{{ url_for('auth.alum_signup', school_slug=school.slug) }}">Sign up</a> ·
+    School staff: <a href="{{ url_for('auth.admin_login', school_slug=school.slug) }}">admin login</a>.
+  </p>
+</section>
+{% endblock %}

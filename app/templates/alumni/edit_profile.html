@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Edit profile{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>Edit your profile</h1>
+  <form method="post" class="form">
+    <label>First name<input name="first_name" value="{{ user.first_name }}" required></label>
+    <label>Last name<input name="last_name" value="{{ user.last_name }}" required></label>
+    <label>Graduation year<input type="number" name="grad_year" value="{{ user.grad_year or '' }}" min="1900" max="2099"></label>
+    <label>Current role<input name="current_role" value="{{ user.current_role or '' }}" placeholder="e.g. Software Engineer"></label>
+    <label>Current company<input name="current_company" value="{{ user.current_company or '' }}" placeholder="e.g. Stripe"></label>
+    <label>Location<input name="location" value="{{ user.location or '' }}" placeholder="City, State"></label>
+    <label>Profile picture URL<input name="profile_pic_url" value="{{ user.profile_pic_url or '' }}" placeholder="https://…"></label>
+    <label>Bio<textarea name="bio" rows="5">{{ user.bio or '' }}</textarea></label>
+    <button class="btn btn-primary" type="submit">Save changes</button>
+  </form>
+</section>
+{% endblock %}

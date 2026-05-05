@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ school.name }} on Alum{% endblock %}
+
+{% block content %}
+<section class="school-hero">
+  <h1>{{ school.name }}</h1>
+  {% if school.city %}<p class="muted">{{ school.city }}{% if school.state %}, {{ school.state }}{% endif %}</p>{% endif %}
+  {% if school.description %}<p>{{ school.description }}</p>{% endif %}
+
+  <div class="stats">
+    <div class="stat"><span class="stat-num">{{ alum_count }}</span><span class="stat-label">alumni</span></div>
+    <div class="stat"><span class="stat-num">{{ group_count }}</span><span class="stat-label">groups</span></div>
+  </div>
+</section>
+
+{% if not current_user.is_authenticated %}
+  <section class="card cta">
+    <h2>Join your school's network</h2>
+    <p>Sign up with your name, the year you graduated, and what you're up to now.</p>
+    <p>
+      <a class="btn btn-primary" href="{{ url_for('auth.alum_signup', school_slug=school.slug) }}">Sign up as an alum</a>
+      <a class="btn" href="{{ url_for('auth.alum_login', school_slug=school.slug) }}">Log in</a>
+    </p>
+    <p class="muted">
+      School staff: <a href="{{ url_for('auth.admin_login', school_slug=school.slug) }}">admin login</a>.
+    </p>
+  </section>
+{% else %}
+  <section class="card">
+    <h2>Quick links</h2>
+    <ul class="quicklinks">
+      <li><a href="{{ url_for('alumni.directory', school_slug=school.slug) }}">Browse the directory</a></li>
+      <li><a href="{{ url_for('groups.list_groups', school_slug=school.slug) }}">Find a group to join</a></li>
+      <li><a href="{{ url_for('messages.inbox', school_slug=school.slug) }}">Open your inbox</a></li>
+      <li><a href="{{ url_for('alumni.edit_profile', school_slug=school.slug) }}">Update your profile</a></li>
+    </ul>
+  </section>
+{% endif %}
+
+<section class="card">
+  <h2>Announcements</h2>
+  {% if announcements %}
+    <ul class="announcements">
+      {% for a in announcements %}
+        <li>
+          <h3>{{ a.title }}</h3>
+          <p class="muted">{{ a.sent_at.strftime('%b %d, %Y') }}{% if a.sent_by %} · {{ a.sent_by.full_name }}{% endif %}</p>
+          <p>{{ a.body }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No announcements yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

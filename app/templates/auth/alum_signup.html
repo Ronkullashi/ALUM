@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Sign up · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>Join {{ school.name }}</h1>
+  <p class="muted">Create an account so other alumni can find you.</p>
+
+  <form method="post" class="form">
+    <label>First name<input name="first_name" required></label>
+    <label>Last name<input name="last_name" required></label>
+    <label>Email<input type="email" name="email" required></label>
+    <label>Password<input type="password" name="password" required minlength="6"></label>
+    <label>Graduation year<input type="number" name="grad_year" min="1900" max="2099"></label>
+
+    <button class="btn btn-primary" type="submit">Create account</button>
+  </form>
+
+  <p class="muted">
+    Already have an account? <a href="{{ url_for('auth.alum_login', school_slug=school.slug) }}">Log in</a>.
+  </p>
+</section>
+{% endblock %}

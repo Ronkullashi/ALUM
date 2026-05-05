@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Groups · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="row-spread">
+    <h1>Groups</h1>
+    <a class="btn btn-primary" href="{{ url_for('groups.new_group', school_slug=school.slug) }}">+ New group</a>
+  </div>
+  <p class="muted">Class years, clubs, sports teams, interest groups.</p>
+</section>
+
+<section class="grid">
+  {% for g in groups %}
+    <a class="group-card" href="{{ url_for('groups.group_detail', school_slug=school.slug, group_id=g.id) }}">
+      <span class="tag tag-{{ g.category }}">{{ g.category.replace('_', ' ') }}</span>
+      <h3>{{ g.name }}</h3>
+      {% if g.description %}<p class="muted">{{ g.description }}</p>{% endif %}
+      <p class="muted small">{{ g.member_count }} member{{ '' if g.member_count == 1 else 's' }}{% if g.id in my_group_ids %} · joined{% endif %}</p>
+    </a>
+  {% else %}
+    <p class="muted">No groups yet. Be the first to start one.</p>
+  {% endfor %}
+</section>
+{% endblock %}

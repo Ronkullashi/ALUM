@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Messages · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Messages</h1>
+  <p class="muted">Direct messages with other {{ school.name }} alumni.</p>
+
+  {% if threads %}
+    <ul class="thread-list">
+      {% for t in threads %}
+        <li class="{% if t.unread %}unread{% endif %}">
+          <a href="{{ url_for('messages.thread', school_slug=school.slug, user_id=t.partner.id) }}">
+            <div class="avatar">
+              {% if t.partner.profile_pic_url %}
+                <img src="{{ t.partner.profile_pic_url }}" alt="">
+              {% else %}
+                <div class="avatar-fallback">{{ t.partner.first_name[:1] }}{{ t.partner.last_name[:1] }}</div>
+              {% endif %}
+            </div>
+            <div>
+              <strong>{{ t.partner.full_name }}</strong>
+              <p class="muted preview">
+                {% if t.last.sender_id == current_user.id %}You: {% endif %}{{ t.last.body[:120] }}{% if t.last.body|length > 120 %}…{% endif %}
+              </p>
+            </div>
+            <span class="muted small">{{ t.last.sent_at.strftime('%b %d') }}</span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No messages yet. Find someone in the <a href="{{ url_for('alumni.directory', school_slug=school.slug) }}">directory</a> and say hi.</p>
+  {% endif %}
+</section>
+{% endblock %}

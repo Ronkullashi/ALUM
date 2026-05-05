@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>{{ school.name }} — admin dashboard</h1>
+  <div class="stats">
+    <div class="stat"><span class="stat-num">{{ alumni|length }}</span><span class="stat-label">alumni</span></div>
+    <div class="stat"><span class="stat-num">{{ group_count }}</span><span class="stat-label">groups</span></div>
+    <div class="stat"><span class="stat-num">{{ message_count }}</span><span class="stat-label">messages sent</span></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Send an announcement</h2>
+  <p class="muted">Visible on the school home page to all alumni and visitors.</p>
+  <form method="post" action="{{ url_for('admin.announce', school_slug=school.slug) }}" class="form">
+    <label>Title<input name="title" required></label>
+    <label>Body<textarea name="body" rows="4" required></textarea></label>
+    <button class="btn btn-primary" type="submit">Send announcement</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Recent announcements</h2>
+  {% if announcements %}
+    <ul class="announcements">
+      {% for a in announcements %}
+        <li>
+          <h3>{{ a.title }}</h3>
+          <p class="muted">{{ a.sent_at.strftime('%b %d, %Y · %I:%M %p') }}{% if a.sent_by %} · {{ a.sent_by.full_name }}{% endif %}</p>
+          <p>{{ a.body }}</p>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No announcements sent yet.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Alumni roster</h2>
+  <table class="roster">
+    <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Role</th><th>Joined</th><th>Admin</th></tr></thead>
+    <tbody>
+      {% for u in alumni %}
+        <tr>
+          <td><a href="{{ url_for('alumni.profile', school_slug=school.slug, user_id=u.id) }}">{{ u.full_name }}</a></td>
+          <td class="muted">{{ u.email }}</td>
+          <td>{{ u.grad_year or '—' }}</td>
+          <td>{{ u.current_role or '—' }}{% if u.current_company %} · {{ u.current_company }}{% endif %}</td>
+          <td class="muted">{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+          <td>
+            {% if u.id == current_user.id %}
+              <span class="muted">you</span>
+            {% else %}
+              <form method="post" action="{{ url_for('admin.toggle_admin', school_slug=school.slug, user_id=u.id) }}">
+                <button class="btn btn-small" type="submit">{% if u.is_admin %}Demote{% else %}Promote{% endif %}</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

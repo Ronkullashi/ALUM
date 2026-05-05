@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ partner.full_name }} · Messages{% endblock %}
+
+{% block content %}
+<section class="card">
+  <a class="muted small" href="{{ url_for('messages.inbox', school_slug=school.slug) }}">← Back to inbox</a>
+  <div class="thread-header">
+    <a href="{{ url_for('alumni.profile', school_slug=school.slug, user_id=partner.id) }}">
+      <h1>{{ partner.full_name }}</h1>
+    </a>
+    {% if partner.grad_year %}<p class="muted">Class of {{ partner.grad_year }}</p>{% endif %}
+  </div>
+
+  <div class="thread">
+    {% for m in messages %}
+      <div class="bubble {% if m.sender_id == current_user.id %}me{% else %}them{% endif %}">
+        <p>{{ m.body }}</p>
+        <span class="muted small">{{ m.sent_at.strftime('%b %d, %I:%M %p') }}</span>
+      </div>
+    {% else %}
+      <p class="muted">No messages yet — say something.</p>
+    {% endfor %}
+  </div>
+
+  <form method="post" class="compose">
+    <textarea name="body" rows="2" required placeholder="Write a message…"></textarea>
+    <button class="btn btn-primary" type="submit">Send</button>
+  </form>
+</section>
+{% endblock %}

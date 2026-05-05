@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Directory · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h1>Alumni directory</h1>
+  <form method="get" class="filter-row">
+    <input name="q" value="{{ q }}" placeholder="Search names, roles, companies, cities">
+    <select name="grad_year">
+      <option value="">Any year</option>
+      {% for y in years %}
+        <option value="{{ y }}" {% if grad_year == y|string %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+</section>
+
+<section class="grid">
+  {% for u in alumni %}
+    <a class="alum-card" href="{{ url_for('alumni.profile', school_slug=school.slug, user_id=u.id) }}">
+      <div class="avatar">
+        {% if u.profile_pic_url %}
+          <img src="{{ u.profile_pic_url }}" alt="">
+        {% else %}
+          <div class="avatar-fallback">{{ u.first_name[:1] }}{{ u.last_name[:1] }}</div>
+        {% endif %}
+      </div>
+      <div class="alum-info">
+        <strong>{{ u.full_name }}</strong>
+        {% if u.grad_year %}<span class="muted"> · '{{ u.grad_year % 100 }}</span>{% endif %}
+        {% if u.current_role %}<div class="muted">{{ u.current_role }}{% if u.current_company %} at {{ u.current_company }}{% endif %}</div>{% endif %}
+        {% if u.location %}<div class="muted">{{ u.location }}</div>{% endif %}
+      </div>
+    </a>
+  {% else %}
+    <p class="muted">No alumni match those filters.</p>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}New group · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>Start a group</h1>
+  <form method="post" class="form">
+    <label>Name<input name="name" required placeholder="e.g. Class of 2018"></label>
+    <label>Category
+      <select name="category">
+        <option value="class_year">Class year</option>
+        <option value="club">Club</option>
+        <option value="sport">Sport</option>
+        <option value="interest" selected>Interest</option>
+      </select>
+    </label>
+    <label>Description<textarea name="description" rows="4" placeholder="What's this group for?"></textarea></label>
+    <button class="btn btn-primary" type="submit">Create group</button>
+  </form>
+</section>
+{% endblock %}

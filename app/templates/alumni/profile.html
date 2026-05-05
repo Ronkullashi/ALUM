@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ user.full_name }} · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card profile-card">
+  <div class="profile-header">
+    <div class="avatar avatar-lg">
+      {% if user.profile_pic_url %}
+        <img src="{{ user.profile_pic_url }}" alt="">
+      {% else %}
+        <div class="avatar-fallback">{{ user.first_name[:1] }}{{ user.last_name[:1] }}</div>
+      {% endif %}
+    </div>
+    <div>
+      <h1>{{ user.full_name }}</h1>
+      <p class="muted">
+        {{ school.name }}{% if user.grad_year %} · Class of {{ user.grad_year }}{% endif %}
+        {% if user.is_admin %} · <span class="tag">admin</span>{% endif %}
+      </p>
+      {% if user.current_role %}
+        <p>{{ user.current_role }}{% if user.current_company %} at <strong>{{ user.current_company }}</strong>{% endif %}</p>
+      {% endif %}
+      {% if user.location %}<p class="muted">{{ user.location }}</p>{% endif %}
+    </div>
+  </div>
+
+  {% if user.bio %}
+    <h3>About</h3>
+    <p>{{ user.bio }}</p>
+  {% endif %}
+
+  <div class="profile-actions">
+    {% if current_user.id == user.id %}
+      <a class="btn" href="{{ url_for('alumni.edit_profile', school_slug=school.slug) }}">Edit profile</a>
+    {% else %}
+      <a class="btn btn-primary" href="{{ url_for('messages.thread', school_slug=school.slug, user_id=user.id) }}">Message</a>
+    {% endif %}
+  </div>
+</section>
+
+{% if user.memberships %}
+<section class="card">
+  <h3>Groups</h3>
+  <ul class="taglist">
+    {% for m in user.memberships %}
+      <li><a href="{{ url_for('groups.group_detail', school_slug=school.slug, group_id=m.group.id) }}">{{ m.group.name }}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

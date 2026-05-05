@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Admin login · {{ school.name }}{% endblock %}
+
+{% block content %}
+<section class="card narrow">
+  <h1>{{ school.name }} — admin</h1>
+  <p class="muted">Restricted to staff with admin permissions on this network.</p>
+
+  <form method="post" class="form">
+    <label>Email<input type="email" name="email" required></label>
+    <label>Password<input type="password" name="password" required></label>
+    <button class="btn btn-primary" type="submit">Log in as admin</button>
+  </form>
+
+  <p class="muted">
+    Looking for the alum login? <a href="{{ url_for('auth.alum_login', school_slug=school.slug) }}">It's over here</a>.
+  </p>
+</section>
+{% endblock %}

@@ -11,7 +11,7 @@
     {% if partner.grad_year %}<p class="muted">Class of {{ partner.grad_year }}</p>{% endif %}
   </div>
 
-  <div class="thread">
+  <div class="thread" data-live="thread">
     {% for m in messages %}
       <div class="bubble {% if m.sender_id == current_user.id %}me{% else %}them{% endif %}">
         <p>{{ m.body }}</p>

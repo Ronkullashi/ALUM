@@ -11,7 +11,7 @@
   </div>
 </section>
 
-<section class="card">
+<section class="card" id="pending-section" data-live="pending">
   <h2>Pending alumni — waiting for your review</h2>
   {% if pending %}
     <p class="muted">Confirm each person is a real graduate before approving.</p>
@@ -69,7 +69,7 @@
   {% endif %}
 </section>
 
-<section class="card">
+<section class="card" id="approved-section" data-live="approved">
   <h2>Approved alumni</h2>
   <table class="roster">
     <thead><tr><th>Name</th><th>Email</th><th>Class</th><th>Role</th><th>Joined</th></tr></thead>

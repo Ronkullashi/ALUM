@@ -39,17 +39,28 @@ def landing():
         return redirect(url_for("main.school_home", school_slug=current_user.school.slug))
 
     if request.method == "POST":
-        raw = request.form.get("code", "").strip()
+        raw = request.form.get("code", "")
         # Strip non-digits so users can paste "123-4567" or "1234 567"
         code = "".join(c for c in raw if c.isdigit())
 
         if len(code) != 7:
-            flash("Access codes are 7 digits. Double-check and try again.", "error")
+            flash(
+                f"Access codes are 7 digits. We received '{code}' "
+                f"({len(code)} digit{'' if len(code) == 1 else 's'}).",
+                "error",
+            )
             return render_template("landing.html")
 
         school = School.query.filter_by(access_code=code).first()
         if not school:
-            flash("That code didn't match any school. Ask your school for the right code.", "error")
+            total = School.query.count()
+            flash(
+                f"Code '{code}' didn't match any of the {total} schools in "
+                f"the database. View the current list at "
+                f"/_debug/schools?key=alum-debug — those are the only codes "
+                f"that work right now.",
+                "error",
+            )
             return render_template("landing.html")
 
         # Mark the visitor as verified for this school for the rest of their session.

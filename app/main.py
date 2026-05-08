@@ -90,6 +90,12 @@ def school_home(school_slug):
     return render_template("school_home.html", school=school, view="gateway")
 
 
+@bp.route("/about")
+def about():
+    """Public About page — accessible without logging in or entering a code."""
+    return render_template("about.html")
+
+
 # ---------------------------------------------------------------------------
 # Temporary debug route — lists every school + code straight from the DB.
 # Gated by ?key=alum-debug. Remove this before opening the site to alumni.

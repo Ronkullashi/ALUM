@@ -19,15 +19,27 @@
         maxlength="11"
         autocomplete="off"
         autofocus
-        required
         placeholder="•••••••">
     </label>
     <button class="btn btn-primary" type="submit">Continue</button>
   </form>
 
   <p class="muted small">
-    Don't have a code? Ask your school's alumni office.
-    Schools: contact us to request a code for your school.
+    Don't have a code? Pick your school from the list below.
   </p>
 </section>
+
+{% if schools %}
+<section class="card">
+  <h2>Or pick your school</h2>
+  <p class="muted">Click your school to continue. (While Alum is in early
+  preview, anyone with the link can enter — your school's admin still
+  controls who gets approved once they sign up.)</p>
+  <ul class="school-picker">
+    {% for s in schools %}
+      <li><a href="{{ url_for('main.enter_school', slug=s.slug) }}">{{ s.name }}{% if s.neighborhood %} <span class="muted small">· {{ s.neighborhood }}</span>{% endif %}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 {% endblock %}

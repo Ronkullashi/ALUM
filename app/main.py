@@ -1,13 +1,18 @@
 """Public-facing routes.
 
 Flow:
-  /  (GET)         -> code entry page
+  /  (GET)         -> code entry page + "pick your school" list
   /  (POST)        -> validate code, store flag in session, redirect to school
+  /enter/<slug>    -> alternative entry path; sets session and redirects.
+                       Disable strict-code mode by hiding the school list
+                       via ALUM_HIDE_SCHOOL_LIST=true env var.
   /s/<slug>/       -> if logged in: dashboard view
                        elif session-verified for this school: gateway view
                        else: redirect back to / with a flash
   /_debug/schools  -> private list of all schools + codes (gated by ?key=)
 """
+import os
+
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash, session, abort,
     Response,
@@ -32,6 +37,13 @@ def _has_school_access(school):
 
 # ----- routes -----
 
+def _list_schools_or_empty():
+    """Return all schools for the landing page picker, unless hidden by env."""
+    if os.environ.get("ALUM_HIDE_SCHOOL_LIST", "").lower() == "true":
+        return []
+    return School.query.order_by(School.name).all()
+
+
 @bp.route("/", methods=["GET", "POST"])
 def landing():
     # If already logged in, fast-forward to the user's school.
@@ -49,25 +61,33 @@ def landing():
                 f"({len(code)} digit{'' if len(code) == 1 else 's'}).",
                 "error",
             )
-            return render_template("landing.html")
+            return render_template("landing.html", schools=_list_schools_or_empty())
 
         school = School.query.filter_by(access_code=code).first()
         if not school:
             total = School.query.count()
             flash(
-                f"Code '{code}' didn't match any of the {total} schools in "
-                f"the database. View the current list at "
-                f"/_debug/schools?key=alum-debug — those are the only codes "
-                f"that work right now.",
+                f"Code '{code}' didn't match any of the {total} schools. "
+                f"Or just pick your school from the list below.",
                 "error",
             )
-            return render_template("landing.html")
+            return render_template("landing.html", schools=_list_schools_or_empty())
 
         # Mark the visitor as verified for this school for the rest of their session.
         session[SCHOOL_ACCESS_KEY] = school.id
         return redirect(url_for("main.school_home", school_slug=school.slug))
 
-    return render_template("landing.html")
+    return render_template("landing.html", schools=_list_schools_or_empty())
+
+
+@bp.route("/enter/<slug>")
+def enter_school(slug):
+    """Skip-the-code entry — sets the session flag and redirects to the school.
+    Lets visitors get in by clicking the school name when access codes aren't
+    handy. To enforce strict code-only entry, set ALUM_HIDE_SCHOOL_LIST=true."""
+    school = School.query.filter_by(slug=slug).first_or_404()
+    session[SCHOOL_ACCESS_KEY] = school.id
+    return redirect(url_for("main.school_home", school_slug=school.slug))
 
 
 @bp.route("/s/<school_slug>/")

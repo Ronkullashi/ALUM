@@ -31,15 +31,37 @@
 
 {% if schools %}
 <section class="card">
-  <h2>Or pick your school</h2>
-  <p class="muted">Click your school to continue. (While Alum is in early
-  preview, anyone with the link can enter — your school's admin still
-  controls who gets approved once they sign up.)</p>
+  <h2>Schools on Alum</h2>
+  <p class="muted">Click a code to copy it into the form above, or click the
+  school name to skip the code and continue.</p>
   <ul class="school-picker">
     {% for s in schools %}
-      <li><a href="{{ url_for('main.enter_school', slug=s.slug) }}">{{ s.name }}{% if s.neighborhood %} <span class="muted small">· {{ s.neighborhood }}</span>{% endif %}</a></li>
+      <li class="school-row">
+        <a class="school-link" href="{{ url_for('main.enter_school', slug=s.slug) }}">
+          <span>{{ s.name }}</span>
+          {% if s.neighborhood %}<span class="muted small">· {{ s.neighborhood }}</span>{% endif %}
+        </a>
+        <button type="button"
+                class="school-code"
+                data-code="{{ s.access_code }}"
+                title="Click to fill the code form">{{ s.access_code }}</button>
+      </li>
     {% endfor %}
   </ul>
 </section>
+<script>
+  // Click a code chip -> fills the code form above and submits it.
+  document.querySelectorAll(".school-code").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const code = btn.dataset.code;
+      const input = document.querySelector("input[name='code']");
+      const form = input ? input.closest("form") : null;
+      if (input && form) {
+        input.value = code;
+        form.submit();
+      }
+    });
+  });
+</script>
 {% endif %}
 {% endblock %}
